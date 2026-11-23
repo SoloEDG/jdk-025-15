@@ -1,4 +1,4 @@
-import { X, Pickaxe, Flag, ScanSearch } from "lucide-react";
+import { X, Pickaxe, Flag, ScanSearch, GitBranch } from "lucide-react";
 export function GuideDialog({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -32,8 +32,15 @@ export function GuideDialog({ onClose }: { onClose: () => void }) {
         <div className="guide-step">
           <Flag />
           <p>
-            <strong>标记与推断</strong>
-            右键或标记模式循环旗标、疑问和清除。双击已揭数字且周围旗标数相等时展开其余格；错误旗标可能造成伤害。方向键移焦点，F标记，回车探索。
+            <strong>真实标记与推断</strong>
+            右键或标记模式循环旗标、疑问和清除。旗标只是你的判断，未经探针确认不会被推断当作事实。双击已揭数字且周围旗标数相等时展开其余格；错误旗标可能造成伤害。方向键移焦点，F标记，回车探索。
+          </p>
+        </div>
+        <div className="guide-step">
+          <GitBranch />
+          <p>
+            <strong>假设分支与合并</strong>
+            新建分支并在“假设”模式下给格子写安全/危险；分支不会揭格、不花道具、不收文物，可自由改名、切换、删除。合并时求解器会把所选假设格拆成全部情形（2ⁿ 个组合，不止你手建的组合），逐一枚举符合公开数字的布局：每个可行情形都必须被覆盖，且每个可行分支都得到同一结论，合并才「可提交」。矛盾分支、空分支和未算完的分支不计入支持；重复覆盖与遗漏都会给出计数。只有可提交的结论用于安全探索，分支内的安/危始终只是假设。新数字出现后自动重算，未算完只显示待证。
           </p>
         </div>
         <div className="guide-step">

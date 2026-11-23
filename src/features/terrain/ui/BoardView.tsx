@@ -1,29 +1,34 @@
 import { useRef, useState } from "react";
-import { Pause, Play, MapPin, Maximize2, Flag, Gem } from "lucide-react";
-import type { Analysis, Expedition } from "../../../shared/types";
+import { Pause, Play, MapPin, Maximize2, Flag, Gem, GitBranch } from "lucide-react";
+import type { Expedition, HypothesisValue } from "../../../shared/types";
 import type { Command } from "../../../shared/commands";
 import { isTerminal } from "../../../shared/initial";
 import { region } from "../model/regions";
 import { BoardCell } from "./BoardCell";
+
+export interface CellHint {
+  kind: "safe" | "danger";
+  /** merged = proven by merge; direct = proven from numbers with no assumptions. */
+  source: "merged" | "direct";
+}
+
 export function BoardView({
   expedition: e,
-  analysis,
-  showHints,
+  hints,
   send,
 }: {
   expedition: Expedition;
-  analysis: Analysis;
-  showHints: boolean;
+  hints: Map<number, CellHint>;
   send: (c: Command) => void;
 }) {
   const [focus, setFocus] = useState(44);
   const wrap = useRef<HTMLDivElement>(null);
   const r = region(e.board.difficulty);
-  const hints = new Map(
-    showHints
-      ? [...analysis.safe, ...analysis.danger].map((h) => [h.cell, h.kind])
-      : [],
-  );
+  const active = e.hypotheses.branches.find((b) => b.id === e.hypotheses.active);
+  const assumptions: Record<number, HypothesisValue> = {};
+  if (active)
+    for (const [key, value] of Object.entries(active.assumptions))
+      assumptions[Number(key)] = value;
   const activeFocus = Math.min(focus, e.board.cells.length - 1);
   const navigate = (id: number, key: string) => {
     const x = id % e.board.width,
@@ -65,9 +70,17 @@ export function BoardView({
             {e.status === "ready"
               ? "待出发"
               : e.status === "active"
-                ? "探险进行中"
+                ? e.mode === "assume"
+                  ? "假设模式"
+                  : "探险进行中"
                 : "探险已结束"}
           </span>
+          {active && (
+            <span className="branch-banner" title="当前假设分支">
+              <GitBranch size={10} />
+              {active.name}
+            </span>
+          )}
           <button
             className="icon-button"
             aria-label={e.paused ? "继续探险" : "暂停探险"}
@@ -126,6 +139,8 @@ export function BoardView({
                 width={e.board.width}
                 terminal={isTerminal(e.status)}
                 hint={hints.get(c.id)}
+                assumption={assumptions[c.id]}
+                assumptionBranch={active?.name ?? null}
                 selected={c.id === activeFocus}
                 onOpen={() => {
                   setFocus(c.id);
@@ -173,7 +188,11 @@ export function BoardView({
         </span>
         <span>
           <Flag size={12} />
-          危险标记
+          真实旗标
+        </span>
+        <span>
+          <GitBranch size={12} />
+          假设：安 / 危
         </span>
         <span>
           <Gem size={12} />
@@ -181,6 +200,9 @@ export function BoardView({
         </span>
         <small>右键标记 · 双击数字快速展开</small>
       </div>
+      <p className="board-truth-note">
+        真实信息：旗帜与探针确认 · 假设信息：分支内的安/危，随时可改名、切换或删除，不影响已付资源与已得发现。
+      </p>
     </section>
   );
 }

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Compass,
-  Map,
+  Map as MapIcon,
   BookOpen,
   HelpCircle,
   Plus,
@@ -14,14 +14,14 @@ import {
 } from "lucide-react";
 import type { Difficulty } from "../shared/types";
 import { isTerminal } from "../shared/initial";
-import {
-  RegionPanel,
-  BoardView,
-  publicBoard,
-  region,
-} from "../features/terrain";
+import { RegionPanel, BoardView, region } from "../features/terrain";
 import { ActionBar, ProgressStrip } from "../features/exploration";
-import { analyze, InferencePanel } from "../features/inference";
+import {
+  analyzeExpedition,
+  branchOverlay,
+  InferencePanel,
+} from "../features/inference";
+import type { CellHint } from "../features/terrain/ui/BoardView";
 import { ToolPanel } from "../features/tools";
 import { ChroniclePanel, ResultPanel } from "../features/chronicle";
 import { useGame } from "./useGame";
@@ -34,7 +34,22 @@ export function App() {
   const [launch, setLaunch] = useState<Difficulty | null>(null);
   const [extract, setExtract] = useState(false);
   const [hints, setHints] = useState(false);
-  const analysis = useMemo(() => analyze(publicBoard(e.board)), [e.board]);
+  const analysis = useMemo(() => analyzeExpedition(e), [e]);
+  const overlay = useMemo(
+    () => branchOverlay(e, analysis),
+    [e, analysis],
+  );
+  const hintMap = useMemo(() => {
+    if (!hints) return new Map<number, CellHint>();
+    const map = new Map<number, CellHint>();
+    for (const d of analysis.base.conclusions)
+      map.set(d.cell, { kind: d.kind, source: "direct" });
+    for (const id of overlay.safe)
+      map.set(id, { kind: "safe", source: "merged" });
+    for (const id of overlay.danger)
+      map.set(id, { kind: "danger", source: "merged" });
+    return map;
+  }, [hints, analysis, overlay]);
   const r = region(e.board.difficulty);
   const report = state.doc.archive.reports.find((v) => v.id === e.id);
   return (
@@ -53,7 +68,7 @@ export function App() {
         </a>
         <nav aria-label="主导航">
           <a className="nav-active" href="#map">
-            <Map size={14} />
+            <MapIcon size={14} />
             遗迹探索
           </a>
           <a href="#chronicle">
@@ -108,12 +123,7 @@ export function App() {
           </aside>
           <div className="center-column" id="map">
             <ProgressStrip expedition={e} />
-            <BoardView
-              expedition={e}
-              analysis={analysis}
-              showHints={hints}
-              send={send}
-            />
+            <BoardView expedition={e} hints={hintMap} send={send} />
             <ActionBar
               expedition={e}
               send={send}
@@ -132,13 +142,21 @@ export function App() {
                   ? "探针已就绪，点击未探索且无旗标的石板，确认一格信息。"
                   : e.mode === "flare"
                     ? "火把已就绪，点击未探索石板；安全则揭开，危险则仅确认。"
-                    : r.description}
+                    : e.mode === "assume"
+                      ? `假设模式：点击格子依次写入危险 / 安全 / 清除，仅改变「${
+                          e.hypotheses.branches.find(
+                            (b) => b.id === e.hypotheses.active,
+                          )?.name ?? "未选择"
+                        }」的假设。`
+                      : r.description}
                 <span>
                   {e.mode === "reveal"
                     ? "谨慎的每一步，都会让故事更完整。"
                     : e.mode === "mark"
                       ? "旗标是你的判断，疑问保留未知；并不证明真实危险。"
-                      : "使用后自动回到探索模式，取消可点击「探索」。"}
+                      : e.mode === "assume"
+                        ? "假设不会揭开石板、不花道具、不收文物，也不会改变真实旗标。"
+                        : "使用后自动回到探索模式，取消可点击「探索」。"}
                 </span>
               </p>
               <span className="note-mark">✦</span>
@@ -155,6 +173,7 @@ export function App() {
               expedition={e}
               showHints={hints}
               onHints={() => setHints(!hints)}
+              send={send}
               onLocate={(id) => {
                 setHints(true);
                 document.getElementById("tile-" + id)?.focus();

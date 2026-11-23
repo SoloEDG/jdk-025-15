@@ -5,14 +5,19 @@ import {
   ShieldCheck,
   Gem,
   Eye,
+  GitBranch,
 } from "lucide-react";
-import type { Cell } from "../../../shared/types";
+import type { Cell, HypothesisValue } from "../../../shared/types";
 import { coordinate } from "../../../shared/geometry";
+import type { CellHint } from "./BoardView";
+
 export function BoardCell({
   cell: c,
   width,
   terminal,
   hint,
+  assumption,
+  assumptionBranch,
   selected,
   onOpen,
   onMark,
@@ -22,7 +27,9 @@ export function BoardCell({
   cell: Cell;
   width: number;
   terminal: boolean;
-  hint: "safe" | "danger" | undefined;
+  hint: CellHint | undefined;
+  assumption: HypothesisValue | undefined;
+  assumptionBranch: string | null;
   selected: boolean;
   onOpen: () => void;
   onMark: () => void;
@@ -30,6 +37,9 @@ export function BoardCell({
   onNavigate: (key: string) => void;
 }) {
   const hazard = c.mine && (c.revealed || terminal);
+  // Truth layer first: an exploded trap, a revealed tile, a real flag or a
+  // probe badge is never replaced by a hypothesis. Assumptions render as a
+  // dashed outline plus a corner tag on top of whatever truth is visible.
   const content = hazard ? (
     <TriangleAlert size={18} />
   ) : c.revealed ? (
@@ -46,14 +56,20 @@ export function BoardCell({
     <TriangleAlert size={15} />
   ) : c.intel === "safe" ? (
     <ShieldCheck size={15} />
+  ) : assumption === "danger" ? (
+    <GitBranch size={15} className="assume-icon danger" />
+  ) : assumption === "safe" ? (
+    <GitBranch size={15} className="assume-icon safe" />
+  ) : hint ? (
+    <ShieldCheck size={14} className="hint-icon" />
   ) : null;
   let label = `${coordinate(c.id, width)}，`;
   label += hazard
-    ? "已发现陷阱"
+    ? "已发现陷阱，真实危险"
     : c.revealed
       ? `已探索，邻近危险${c.adjacent}${c.relic ? "，发现文物" : ""}`
       : c.mark === "flag"
-        ? "危险旗标"
+        ? "真实旗标，未验证"
         : c.mark === "question"
           ? "疑问标记"
           : c.intel === "safe"
@@ -61,6 +77,14 @@ export function BoardCell({
             : c.intel === "danger"
               ? "探针确认危险，未探索"
               : "未探索";
+  if (assumption)
+    label += `；当前假设分支「${assumptionBranch}」把它设为${assumption === "danger" ? "危险" : "安全"}（不是事实）`;
+  if (hint)
+    label += `；${
+      hint.source === "merged"
+        ? "合并结论已验证"
+        : "直接推断结论（未使用假设）"
+    }${hint.kind === "safe" ? "安全" : "危险"}`;
   return (
     <button
       role="gridcell"
@@ -75,7 +99,9 @@ export function BoardCell({
         c.revealed ? "terrain-" + c.terrain : "",
         c.mark === "flag" ? "flagged" : "",
         c.intel !== "unknown" ? "intel-" + c.intel : "",
-        hint ? "hint-" + hint : "",
+        hint ? "hint-" + hint.kind : "",
+        hint ? "hint-src-" + hint.source : "",
+        assumption ? "assumed-" + assumption : "",
         selected ? "tile-selected" : "",
         c.revealed && !c.mine ? "number-" + c.adjacent : "",
       ].join(" ")}
@@ -103,6 +129,16 @@ export function BoardCell({
       }}
     >
       {content}
+      {!c.revealed && assumption && (
+        <span className={"assume-tag " + assumption}>
+          {assumption === "danger" ? "危" : "安"}
+        </span>
+      )}
+      {!c.revealed && assumption && (c.mark === "flag" || c.mark === "question") && (
+        <span className="intel-badge assume-marker" title="真实标记与假设同时存在">
+          ·
+        </span>
+      )}
       {c.revealed && c.relic && c.adjacent > 0 && (
         <span className="relic-number">{c.adjacent}</span>
       )}

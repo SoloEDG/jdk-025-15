@@ -8,6 +8,7 @@ import type {
 import { neighbors } from "../shared/geometry";
 import { region } from "../features/terrain";
 import { initialGame } from "./gameReducer";
+import { DIRECT_BRANCH } from "../shared/constants";
 const key = "ruinfield-jdk025-v1";
 const obj = (v: unknown): v is Record<string, unknown> =>
   !!v && typeof v === "object" && !Array.isArray(v);
@@ -74,6 +75,48 @@ function validBoard(v: unknown): v is Board {
       (c.intel === "unknown" || (c.intel === "danger") === c.mine),
   );
 }
+function validHypotheses(v: unknown, cells: number): boolean {
+  if (
+    !obj(v) ||
+    !Array.isArray(v.branches) ||
+    v.branches.length > 12 ||
+    !(v.active === null || typeof v.active === "string") ||
+    !Array.isArray(v.merge) ||
+    !v.merge.every((id) => typeof id === "string")
+  )
+    return false;
+  const ids = new Set<string>();
+  for (const b of v.branches) {
+    if (
+      !obj(b) ||
+      typeof b.id !== "string" ||
+      !b.id ||
+      ids.has(b.id) ||
+      typeof b.name !== "string" ||
+      !b.name ||
+      b.name.length > 24 ||
+      !int(b.createdAt) ||
+      !int(b.updatedAt) ||
+      !obj(b.assumptions) ||
+      !Object.entries(b.assumptions).every(
+        ([key, value]) =>
+          int(Number(key)) &&
+          Number(key) < cells &&
+          (value === "safe" || value === "danger"),
+      )
+    )
+      return false;
+    ids.add(b.id);
+  }
+  if (v.active !== null && !ids.has(String(v.active))) return false;
+  if (
+    !v.merge.every(
+      (id) => id === DIRECT_BRANCH || ids.has(String(id)),
+    )
+  )
+    return false;
+  return new Set(v.merge).size === v.merge.length;
+}
 function validExpedition(v: unknown): v is Expedition {
   if (
     !obj(v) ||
@@ -82,7 +125,7 @@ function validExpedition(v: unknown): v is Expedition {
     !["ready", "active", "won", "lost", "extracted"].includes(
       String(v.status),
     ) ||
-    !["reveal", "mark", "probe", "flare"].includes(String(v.mode)) ||
+    !["reveal", "mark", "probe", "flare", "assume"].includes(String(v.mode)) ||
     !int(v.lives) ||
     Number(v.lives) > 3 ||
     typeof v.shield !== "boolean" ||
@@ -97,6 +140,7 @@ function validExpedition(v: unknown): v is Expedition {
       (int(v.selected) && Number(v.selected) < v.board.cells.length)
     ) ||
     !obj(v.tools) ||
+    !validHypotheses(v.hypotheses, v.board.cells.length) ||
     !Array.isArray(v.actions) ||
     v.actions.length > 80
   )
@@ -126,6 +170,7 @@ function validExpedition(v: unknown): v is Expedition {
           "hit",
           "shield",
           "extract",
+          "assume",
         ].includes(String(a.kind)) &&
         (a.cell === null ||
           (int(a.cell) && Number(a.cell) < board.cells.length)) &&

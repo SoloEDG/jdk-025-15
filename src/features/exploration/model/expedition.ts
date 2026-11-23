@@ -20,6 +20,7 @@ export function createExpedition(
     nextAction: 1,
     selected: null,
     startedAt: now,
+    hypotheses: { branches: [], active: null, merge: [] },
   };
 }
 export function mayAct(e: Expedition) {

@@ -9,8 +9,22 @@ import {
   cycleMark,
   chordCells,
 } from "../features/exploration";
+import {
+  activeBranch,
+  createBranch,
+  deleteBranch,
+  pruneHypotheses,
+  renameBranch,
+  selectBranch,
+  setAssumption,
+  clearAssumption,
+  toggleMerge,
+  setMerge,
+  toggleAssumption,
+} from "../features/exploration/model/branches";
 import { inspectCell, activateShield } from "../features/tools";
 import { settle } from "../features/chronicle";
+
 export function initialGame(): Workspace {
   return {
     doc: {
@@ -25,6 +39,7 @@ export function initialGame(): Workspace {
     notice: "",
   };
 }
+
 export function gameReducer(state: Workspace, c: Command): Workspace {
   let e = state.doc.expedition;
   let archive = state.doc.archive;
@@ -45,7 +60,11 @@ export function gameReducer(state: Workspace, c: Command): Workspace {
       };
     }
     case "mode":
-      if (mayAct(e)) e = { ...e, mode: c.mode };
+      if (mayAct(e))
+        e = {
+          ...e,
+          mode: c.mode === "assume" && !activeBranch(e) ? "mark" : c.mode,
+        };
       break;
     case "pause":
       if (e.status === "active") e = { ...e, paused: c.paused ?? !e.paused };
@@ -68,6 +87,7 @@ export function gameReducer(state: Workspace, c: Command): Workspace {
       break;
     case "chord":
       e = chordCells(e, c.id);
+      if (e !== state.doc.expedition) e = pruneHypotheses(e);
       break;
     case "cell": {
       const cell = e.board.cells[c.id];
@@ -76,19 +96,51 @@ export function gameReducer(state: Workspace, c: Command): Workspace {
         e = cycleMark(e, c.id);
         break;
       }
+      if (e.mode === "assume") {
+        e = toggleAssumption(e, c.id);
+        break;
+      }
       if (cell.revealed || cell.mark === "flag") break;
       if (e.mode === "probe" || e.mode === "flare") {
         const result = inspectCell(e, c.id, e.mode);
         e = result.reveal.length
           ? revealCells(result.expedition, result.reveal)
           : result.expedition;
+        e = pruneHypotheses(e);
         break;
       }
       if (!e.board.generated)
         e = { ...e, status: "active", board: generateBoard(e.board, c.id) };
       e = revealCells(e, [c.id]);
+      e = pruneHypotheses(e);
       break;
     }
+    case "branch-new": {
+      const result = createBranch(e, c.name);
+      e = result.expedition;
+      break;
+    }
+    case "branch-rename":
+      e = renameBranch(e, c.id, c.name);
+      break;
+    case "branch-select":
+      e = selectBranch(e, c.id);
+      break;
+    case "branch-delete":
+      e = deleteBranch(e, c.id);
+      break;
+    case "branch-assume":
+      e = setAssumption(e, c.id, c.cell, c.value);
+      break;
+    case "branch-clear":
+      e = clearAssumption(e, c.id, c.cell);
+      break;
+    case "branch-merge":
+      e = toggleMerge(e, c.id);
+      break;
+    case "branch-merge-set":
+      e = setMerge(e, c.ids);
+      break;
   }
   if (e === state.doc.expedition) return state;
   if (isTerminal(e.status)) archive = settle(archive, e, Date.now());

@@ -5,6 +5,7 @@ import {
   Clock3,
   Heart,
   ShieldCheck,
+  GitBranch,
 } from "lucide-react";
 import type { Expedition } from "../../../shared/types";
 import type { Command } from "../../../shared/commands";
@@ -18,6 +19,7 @@ export function ActionBar({
   send: (c: Command) => void;
   onExtract: () => void;
 }) {
+  const active = e.hypotheses.branches.find((b) => b.id === e.hypotheses.active);
   return (
     <div className="action-bar">
       <div className="mode-switch">
@@ -36,6 +38,20 @@ export function ActionBar({
         >
           <Flag size={15} />
           标记<span>02</span>
+        </button>
+        <button
+          className={e.mode === "assume" ? "active" : ""}
+          aria-pressed={e.mode === "assume"}
+          disabled={!active}
+          title={
+            active
+              ? `在分支「${active.name}」中给格子写假设：危险 → 安全 → 清除`
+              : "先在推断面板新建或选择一个假设分支"
+          }
+          onClick={() => send({ type: "mode", mode: "assume" })}
+        >
+          <GitBranch size={15} />
+          假设<span>03</span>
         </button>
       </div>
       <div className="vitals">
